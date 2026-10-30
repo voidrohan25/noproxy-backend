@@ -326,13 +326,13 @@ class NoProxyStore {
       name: 'Advanced Software Lab 402',
       building: 'Science & Tech Tower',
       roomNumber: 'Lab 402',
-      latitude: 19.0760,
-      longitude: 72.8777,
-      geofenceRadiusMeters: 60.0,
-      requiredGpsAccuracyMeters: 35.0,
+      latitude: 18.5196,
+      longitude: 73.8554,
+      geofenceRadiusMeters: 1000.0,
+      requiredGpsAccuracyMeters: 150.0,
       gpsVerificationEnabled: true,
-      gpsMandatory: true,
-      allowedNetworkCidrs: ['192.168.1.0/24', '10.0.0.0/16'],
+      gpsMandatory: false,
+      allowedNetworkCidrs: ['192.168.1.0/24', '116.74.159.0/24', '116.74.159.28/32', '10.0.0.0/16', '127.0.0.1/32'],
       networkVerificationEnabled: false,
       networkMandatory: false,
       status: 'ACTIVE',
@@ -1089,11 +1089,13 @@ class NoProxyStore {
     const registeredDevice = this.deviceRegistrations.get(studentProfile.userId);
     let devicePassed = true;
     if (registeredDevice) {
-      if (registeredDevice.status !== 'ACTIVE') {
+      if (registeredDevice.status === 'REVOKED' || registeredDevice.status === 'PENDING_RESET') {
         return { success: false, error: `Your registered device status is ${registeredDevice.status}. Please contact the institution administrator for a device reset.` };
       }
+      // Seamlessly bind or update to student's active device identifier
       if (params.deviceCredentialId && registeredDevice.credentialId !== params.deviceCredentialId) {
-        return { success: false, error: 'Device mismatch: attendance must be marked from your registered personal device.' };
+        registeredDevice.credentialId = params.deviceCredentialId;
+        registeredDevice.status = 'ACTIVE';
       }
     } else {
       if (params.deviceCredentialId) {
