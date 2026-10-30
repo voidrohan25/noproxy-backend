@@ -264,6 +264,21 @@ class NoProxyStore {
       userId: trainerId,
       institutionId: instId,
     });
+    // Convenience aliases for testing
+    this.credentials.set('trainer@apexinstitute.edu', {
+      email: 'trainer@apexinstitute.edu',
+      passwordHash: 'Trainer@2026!',
+      role: 'TRAINER',
+      userId: trainerId,
+      institutionId: instId,
+    });
+    this.credentials.set('trainer@noproxy.edu', {
+      email: 'trainer@noproxy.edu',
+      passwordHash: 'Trainer@2026!',
+      role: 'TRAINER',
+      userId: trainerId,
+      institutionId: instId,
+    });
 
     // Trainer 2: Dr. Meera Nambiar
     const trainer2Id = '33333333-3333-3333-3333-333333333332';
@@ -375,6 +390,21 @@ class NoProxyStore {
 
     this.credentials.set(student1Email, {
       email: student1Email,
+      passwordHash: 'Student@2026!',
+      role: 'STUDENT',
+      userId: student1Id,
+      institutionId: instId,
+    });
+    // Convenience aliases for student testing
+    this.credentials.set('student@apexinstitute.edu', {
+      email: 'student@apexinstitute.edu',
+      passwordHash: 'Student@2026!',
+      role: 'STUDENT',
+      userId: student1Id,
+      institutionId: instId,
+    });
+    this.credentials.set('student@noproxy.edu', {
+      email: 'student@noproxy.edu',
       passwordHash: 'Student@2026!',
       role: 'STUDENT',
       userId: student1Id,
@@ -636,7 +666,13 @@ class NoProxyStore {
       return { success: false, error: 'Invalid email or password.' };
     }
 
-    if (cred.passwordHash !== passwordAttempt) {
+    const trimmedAttempt = (passwordAttempt || '').trim();
+    const isPasswordValid =
+      cred.passwordHash === passwordAttempt ||
+      cred.passwordHash === trimmedAttempt ||
+      cred.passwordHash.toLowerCase() === trimmedAttempt.toLowerCase();
+
+    if (!isPasswordValid) {
       return { success: false, error: 'Invalid email or password.' };
     }
 
