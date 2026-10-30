@@ -679,6 +679,10 @@ class NoProxyStore {
       return { success: false, error: 'Account profile not found.' };
     }
 
+    if (profile.accountStatus === 'INACTIVE' || profile.accountStatus === 'SUSPENDED') {
+      return { success: false, error: 'Account has been deactivated. Please contact your institute administrator.' };
+    }
+
     return {
       success: true,
       user: profile,
@@ -916,7 +920,7 @@ class NoProxyStore {
       return { success: false, error: `An account with email "${params.email}" already exists.` };
     }
 
-    const trainerId = `trainer-${Date.now()}`;
+    const trainerId = `trainer-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const password = params.password || 'Trainer@2026!';
 
     const trainerProfile: Profile = {
