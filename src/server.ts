@@ -10,6 +10,7 @@ import qrRoutes from './routes/qr.routes';
 import reportsRoutes from './routes/reports.routes';
 import studentRoutes from './routes/student.routes';
 import sessionsRoutes from './routes/sessions.routes';
+import trainerRoutes from './routes/trainer.routes';
 import { authMiddleware } from './middleware/auth';
 
 dotenv.config();
@@ -90,6 +91,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/trainer', trainerRoutes);
 app.use('/api/sessions', sessionsRoutes);
 
 // Global Error Handler

@@ -1210,6 +1210,97 @@ class NoProxyStore {
     return { success: true, finalizedCount: students.length, absentCount };
   }
 
+  // ============================================================================
+  // SIMPLIFIED BATCH ATTENDANCE LIFECYCLE (START / STOP / LIVE STATUS)
+  // ============================================================================
+
+  startBatchAttendanceSession(params: {
+    batchId: string;
+    trainerId: string;
+    title?: string;
+  }): { success: boolean; session?: Session; error?: string } {
+    const batch = this.batches.get(params.batchId);
+    if (!batch) return { success: false, error: 'Batch not found.' };
+
+    // Check if an active session already exists for this batch
+    const existingActive = Array.from(this.sessions.values()).find(
+      (s) => s.batchId === params.batchId && s.sessionStatus === 'ACTIVE'
+    );
+    if (existingActive) {
+      return { success: true, session: existingActive };
+    }
+
+    // Find assigned subject or default
+    const assignment = Array.from(this.trainerAssignments.values()).find(
+      (a) => a.batchId === params.batchId && a.status === 'ACTIVE'
+    );
+    const subjectId = assignment?.subjectId || '66666666-6666-6666-6666-666666666661';
+    const classroomId = '88888888-8888-8888-8888-888888888881';
+
+    const sessionId = `sess-${Date.now()}`;
+    const now = new Date();
+    const session: Session = {
+      id: sessionId,
+      institutionId: batch.institutionId,
+      batchId: batch.id,
+      subjectId,
+      classroomId,
+      createdBy: params.trainerId,
+      title: params.title || `${batch.name} - Attendance Session`,
+      sessionDate: now.toISOString().split('T')[0],
+      startTime: now.toTimeString().split(' ')[0],
+      endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toTimeString().split(' ')[0],
+      mode: 'OFFLINE',
+      sessionStatus: 'ACTIVE',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    this.sessions.set(sessionId, session);
+
+    this.auditLogs.push({
+      id: `audit-${Date.now()}`,
+      institutionId: batch.institutionId,
+      actorId: params.trainerId,
+      action: 'START_ATTENDANCE_SESSION',
+      entityType: 'SESSION',
+      entityId: sessionId,
+      reason: `Started active QR attendance session for ${batch.name}`,
+      timestamp: now.toISOString(),
+    });
+
+    return { success: true, session };
+  }
+
+  getSessionLiveStatus(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+
+    const enrolledStudents = this.getBatchEnrolledStudents(session.batchId);
+    const records = Array.from(this.attendance.values()).filter((a) => a.sessionId === sessionId);
+    const presentRecords = records.filter((a) => a.status === 'PRESENT' || a.status === 'ONLINE');
+
+    const roster = enrolledStudents.map((item) => {
+      const record = this.attendance.get(`${sessionId}:${item.student.id}`);
+      return {
+        studentId: item.student.id,
+        fullName: item.student.displayName,
+        studentIdNumber: item.rollNumber || 'ST-001',
+        status: record ? record.status : 'NOT_MARKED',
+        markedAt: record?.markedAt,
+        source: record?.attendanceSource,
+      };
+    });
+
+    return {
+      session,
+      totalEnrolled: enrolledStudents.length,
+      presentCount: presentRecords.length,
+      unmarkedCount: enrolledStudents.length - presentRecords.length,
+      roster,
+    };
+  }
+
   markParticipantOnline(sessionId: string, studentId: string, trainerId: string): { success: boolean; record?: AttendanceRecord; error?: string } {
     const session = this.sessions.get(sessionId);
     if (!session) return { success: false, error: 'Session not found.' };
@@ -1464,6 +1555,12 @@ class NoProxyStore {
       const activeSession = batchSessions.find((s) => s.sessionStatus === 'ACTIVE') ||
         batchSessions.find((s) => s.sessionStatus === 'SCHEDULED');
 
+      let sessionWithMyStatus = activeSession ? { ...activeSession } : undefined;
+      if (activeSession) {
+        const myRecord = this.attendance.get(`${activeSession.id}:${studentId}`);
+        (sessionWithMyStatus as any).myAttendanceStatus = myRecord ? myRecord.status : null;
+      }
+
       const summary = this.getStudentAttendanceSummary(batch.id, studentId);
 
       return {
@@ -1471,7 +1568,7 @@ class NoProxyStore {
         enrollment: enr,
         trainer,
         subject,
-        activeSession,
+        activeSession: sessionWithMyStatus,
         summary,
       };
     }).filter((item) => item !== null);
