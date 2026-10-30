@@ -35,6 +35,7 @@ export interface Profile {
   id: string;
   displayName: string;
   email: string;
+  role?: Role;
   phone?: string;
   avatarUrl?: string;
   accountStatus: 'ACTIVE' | 'PENDING' | 'SUSPENDED';
@@ -106,7 +107,7 @@ export interface StudentEnrollment {
   studentId: string;
   batchId: string;
   rollNumber?: string;
-  enrolledAt: string;
+  enrolledAt?: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'DROPPED' | 'COMPLETED';
   createdAt?: string;
   updatedAt?: string;
@@ -118,11 +119,12 @@ export interface StudentProfile {
   institutionId: string;
   batchId?: string; // backwards compatibility
   primaryBatchId?: string;
-  studentIdNumber: string;
+  studentIdNumber?: string;
   fullName: string;
   isVerified: boolean;
   verificationStatus: 'VERIFIED' | 'PENDING' | 'REJECTED';
   registeredAt: string;
+  emergencyContactPhone?: string;
 }
 
 export interface Classroom {

@@ -8,34 +8,124 @@ const router = Router();
 router.use(requireAdmin);
 
 // ------------------------------------------------------------------------------
+// Admin Dashboard
+// ------------------------------------------------------------------------------
+router.get('/dashboard', (req: AuthenticatedRequest, res: Response) => {
+  const stats = db.getAdminDashboardStats();
+  return res.json({ success: true, ...stats });
+});
+
+// ------------------------------------------------------------------------------
+// Batches Management
+// ------------------------------------------------------------------------------
+router.get('/batches', (req: AuthenticatedRequest, res: Response) => {
+  const instId = '11111111-1111-1111-1111-111111111111';
+  const batches = Array.from(db.batches.values())
+    .filter((b) => b.institutionId === instId)
+    .map((b) => {
+      const assignments = Array.from(db.trainerAssignments.values())
+        .filter((a) => a.batchId === b.id && a.status === 'ACTIVE');
+      const trainers = assignments.map((a) => {
+        const p = db.profiles.get(a.trainerId);
+        return { id: a.trainerId, name: p?.displayName || 'Unknown Trainer', email: p?.email || '' };
+      });
+      const students = db.getBatchEnrolledStudents(b.id);
+      return {
+        id: b.id,
+        name: b.name,
+        code: b.code,
+        courseName: b.courseName,
+        status: b.status,
+        trainers,
+        studentsCount: students.length,
+        students,
+      };
+    });
+  return res.json({ success: true, batches });
+});
+
+router.post('/batches', (req: AuthenticatedRequest, res: Response) => {
+  const { name, courseName, startDate, endDate, trainerId } = req.body || {};
+  if (!name || !courseName) {
+    return res.status(400).json({ error: 'name and courseName are required.' });
+  }
+
+  const batch = db.createBatch({
+    name,
+    courseName,
+    startDate,
+    endDate,
+    trainerId,
+  });
+
+  return res.json({ success: true, batch });
+});
+
+// ------------------------------------------------------------------------------
+// Trainer Assignment
+// ------------------------------------------------------------------------------
+router.post('/trainers/assign', (req: AuthenticatedRequest, res: Response) => {
+  const { trainerId, batchId } = req.body || {};
+  if (!trainerId || !batchId) {
+    return res.status(400).json({ error: 'trainerId and batchId are required.' });
+  }
+
+  const result = db.assignTrainerToBatch({
+    trainerId,
+    batchId,
+    actorId: req.userId || 'admin',
+  });
+
+  return res.json(result);
+});
+
+// ------------------------------------------------------------------------------
 // Students & Authoritative Roster
 // ------------------------------------------------------------------------------
 // GET /api/admin/students?batchId=...
 router.get('/students', (req: AuthenticatedRequest, res: Response) => {
   const batchId = req.query.batchId as string;
-  if (!batchId) {
-    return res.status(400).json({ error: 'batchId query parameter is required.' });
+  if (batchId) {
+    const students = db.getBatchEnrolledStudents(batchId);
+    return res.json({ success: true, students });
   }
 
-  const roster = db.listAuthoritativeRoster(batchId);
-  return res.json({ success: true, roster });
+  // Return all enrolled students across the institute
+  const instId = '11111111-1111-1111-1111-111111111111';
+  const allEnrollments = Array.from(db.studentEnrollments.values())
+    .filter((e) => e.institutionId === instId && e.status === 'ACTIVE');
+
+  const students = allEnrollments.map((e) => {
+    const profile = db.profiles.get(e.studentId);
+    const batch = db.batches.get(e.batchId);
+    return {
+      id: e.id,
+      studentId: e.studentId,
+      fullName: profile?.displayName || 'Unknown Student',
+      email: profile?.email || '',
+      batchId: e.batchId,
+      batchName: batch?.name || 'Unknown Batch',
+      enrolledAt: e.enrolledAt,
+    };
+  });
+
+  return res.json({ success: true, students });
 });
 
-// POST /api/admin/students (Single student add)
+// POST /api/admin/students (Single student add / enroll)
 router.post('/students', (req: AuthenticatedRequest, res: Response) => {
-  const { batchId, studentIdNumber, fullName, email } = req.body || {};
+  const { batchId, fullName, email } = req.body || {};
 
-  if (!batchId || !studentIdNumber || !fullName) {
-    return res.status(400).json({ error: 'batchId, studentIdNumber, and fullName are required.' });
+  if (!batchId || !fullName || !email) {
+    return res.status(400).json({ error: 'batchId, fullName, and email are required.' });
   }
 
-  const instId = '11111111-1111-1111-1111-111111111111';
-  const result = db.addAuthoritativeStudent({
-    institutionId: instId,
+  const result = db.enrollStudentByEmail({
     batchId,
-    studentIdNumber: studentIdNumber.trim(),
     fullName: fullName.trim(),
-    email: email?.trim(),
+    email: email.trim(),
+    actorId: req.userId || 'admin',
+    actorRole: 'ADMIN',
   });
 
   if (!result.success) {

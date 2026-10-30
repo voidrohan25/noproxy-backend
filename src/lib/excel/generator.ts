@@ -9,7 +9,7 @@ import { Session, AttendanceRecord, Profile } from '../db/types';
 
 export interface BatchStudentRow {
   student: Profile;
-  rollNumber: string;
+  rollNumber?: string;
 }
 
 export interface ExcelExportData {
@@ -86,9 +86,9 @@ export async function generateBatchAttendanceExcel(data: ExcelExportData): Promi
   // Summary Cols: Present, Online, Absent, Total Finalized, Attendance %
 
   const headers = [
-    'Roll No.',
+    '#',
     'Student Name',
-    'Student ID',
+    'Email Address',
   ];
 
   // Dynamic session columns
@@ -149,7 +149,7 @@ export async function generateBatchAttendanceExcel(data: ExcelExportData): Promi
   } else {
     data.students.forEach((item, studentIndex) => {
       const rowValues: (string | number)[] = [
-        sanitizeCell(item.rollNumber || (studentIndex + 1).toString()),
+        studentIndex + 1,
         sanitizeCell(item.student.displayName),
         sanitizeCell(item.student.email),
       ];
@@ -236,9 +236,9 @@ export async function generateBatchAttendanceExcel(data: ExcelExportData): Promi
   }
 
   // 5. Adjust Column Widths
-  worksheet.getColumn(1).width = 12; // Roll No.
-  worksheet.getColumn(2).width = 24; // Name
-  worksheet.getColumn(3).width = 28; // ID / Email
+  worksheet.getColumn(1).width = 8; // #
+  worksheet.getColumn(2).width = 26; // Student Name
+  worksheet.getColumn(3).width = 30; // Email Address
 
   for (let i = 4; i <= 3 + sortedSessions.length; i++) {
     worksheet.getColumn(i).width = 15; // Dynamic sessions

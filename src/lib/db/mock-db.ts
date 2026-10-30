@@ -21,6 +21,7 @@ import {
   AttendanceSummary,
   AuthoritativeStudent,
   StudentProfile,
+  StudentEnrollment,
   Role,
   PublicClassroom,
 } from './types';
@@ -53,7 +54,7 @@ class NoProxyStore {
   // Commercial Security & Authoritative Roster Entities
   authoritativeRoster: Map<string, AuthoritativeStudent> = new Map(); // key: rosterId
   studentProfiles: Map<string, StudentProfile> = new Map(); // key: userId
-  studentEnrollments: Map<string, { id: string; institutionId: string; batchId: string; studentId: string; rollNumber: string; status: string }> = new Map();
+  studentEnrollments: Map<string, StudentEnrollment> = new Map();
   trainerAssignments: Map<string, { id: string; institutionId: string; trainerId: string; batchId: string; subjectId?: string; status: string }> = new Map();
   credentials: Map<string, UserCredential> = new Map(); // key: lowercase email
 
@@ -1662,6 +1663,283 @@ class NoProxyStore {
 
   listStudentBatchEnrollments(studentId: string) {
     return Array.from(this.studentEnrollments.values()).filter((e) => e.studentId === studentId);
+  }
+
+  // --------------------------------------------------------------------------
+  // SIMPLIFIED ZERO-ROLL-NUMBER ENROLLMENT (NAME + EMAIL ONLY)
+  // --------------------------------------------------------------------------
+  enrollStudentByEmail(params: {
+    batchId: string;
+    fullName: string;
+    email: string;
+    actorId?: string;
+    actorRole?: string;
+  }): { success: boolean; student?: Profile; enrollment?: any; error?: string; isNewStudent?: boolean; message?: string } {
+    if (!params.batchId) return { success: false, error: 'Target batch ID is required.' };
+    if (!params.fullName || !params.fullName.trim()) return { success: false, error: 'Student full name is required.' };
+    if (!params.email || !params.email.trim()) return { success: false, error: 'Student email address is required.' };
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const normalizedEmail = params.email.trim().toLowerCase();
+    if (!emailRegex.test(normalizedEmail)) {
+      return { success: false, error: 'Please provide a valid email address.' };
+    }
+
+    const batch = this.batches.get(params.batchId);
+    if (!batch) return { success: false, error: 'Selected batch does not exist.' };
+
+    // If a trainer is adding, verify they are assigned to this batch
+    if (params.actorRole === 'TRAINER' && params.actorId) {
+      const isAssigned = Array.from(this.trainerAssignments.values()).some(
+        (a) => a.trainerId === params.actorId && a.batchId === params.batchId && a.status === 'ACTIVE'
+      );
+      if (!isAssigned) {
+        return { success: false, error: 'Forbidden: You are not authorized to enroll students into this batch.' };
+      }
+    }
+
+    // Check if user already exists
+    let student = Array.from(this.profiles.values()).find(
+      (p) => p.email.toLowerCase() === normalizedEmail && p.role === 'STUDENT'
+    );
+    let isNew = false;
+
+    if (!student) {
+      isNew = true;
+      const studentId = `stud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      student = {
+        id: studentId,
+        email: normalizedEmail,
+        role: 'STUDENT',
+        displayName: params.fullName.trim(),
+        accountStatus: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      this.profiles.set(studentId, student);
+
+      this.studentProfiles.set(studentId, {
+        id: `sp-${studentId}`,
+        userId: studentId,
+        institutionId: batch.institutionId,
+        fullName: params.fullName.trim(),
+        isVerified: true,
+        verificationStatus: 'VERIFIED',
+        registeredAt: new Date().toISOString(),
+        emergencyContactPhone: '',
+      });
+
+      this.memberships.set(`mem-${studentId}`, {
+        id: `mem-${studentId}`,
+        userId: studentId,
+        institutionId: batch.institutionId,
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+      });
+
+      this.credentials.set(normalizedEmail, {
+        userId: studentId,
+        email: normalizedEmail,
+        passwordHash: 'Student@2026!',
+        role: 'STUDENT',
+        institutionId: batch.institutionId,
+      });
+    }
+
+    // Check duplicate enrollment in this batch
+    const existingEnrollment = Array.from(this.studentEnrollments.values()).find(
+      (e) => e.studentId === student!.id && e.batchId === params.batchId && e.status === 'ACTIVE'
+    );
+    if (existingEnrollment) {
+      return {
+        success: false,
+        error: `Student "${student.displayName}" (${normalizedEmail}) is already actively enrolled in this batch.`,
+      };
+    }
+
+    const enrId = `enr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const enrollment = {
+      id: enrId,
+      institutionId: batch.institutionId,
+      studentId: student.id,
+      batchId: params.batchId,
+      rollNumber: '',
+      enrolledAt: new Date().toISOString(),
+      status: 'ACTIVE' as const,
+    };
+    this.studentEnrollments.set(enrId, enrollment);
+
+    this.auditLogs.push({
+      id: `audit-${Date.now()}`,
+      institutionId: batch.institutionId,
+      actorId: params.actorId || 'SYSTEM',
+      action: 'ENROLL_STUDENT_BY_EMAIL',
+      entityType: 'STUDENT_ENROLLMENT',
+      entityId: enrId,
+      reason: `Enrolled ${student.displayName} (${normalizedEmail}) into batch ${batch.name}`,
+      metadata: { studentId: student.id, batchId: params.batchId, isNewStudent: isNew },
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      student,
+      enrollment,
+      isNewStudent: isNew,
+      message: isNew
+        ? `New student account created for "${student.displayName}" and enrolled into ${batch.name}.`
+        : `Existing student "${student.displayName}" successfully enrolled into ${batch.name}.`,
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // BATCH CREATION & TRAINER ASSIGNMENT
+  // --------------------------------------------------------------------------
+  createBatch(params: {
+    name: string;
+    courseName?: string;
+    startDate?: string;
+    endDate?: string;
+    trainerId?: string;
+    institutionId?: string;
+  }): { success: boolean; batch?: Batch; error?: string } {
+    if (!params.name || !params.name.trim()) {
+      return { success: false, error: 'Batch name is required.' };
+    }
+
+    const instId = params.institutionId || '11111111-1111-1111-1111-111111111111';
+    const batchId = `batch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const courseId = '55555555-5555-5555-5555-555555555551';
+    const now = new Date();
+
+    const batch: Batch = {
+      id: batchId,
+      institutionId: instId,
+      courseId,
+      name: params.name.trim(),
+      code: params.name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').substring(0, 20),
+      startDate: params.startDate || now.toISOString().split('T')[0],
+      endDate: params.endDate || new Date(now.getTime() + 180 * 86400000).toISOString().split('T')[0],
+      status: 'ACTIVE',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    this.batches.set(batchId, batch);
+
+    if (params.trainerId) {
+      this.assignTrainerToBatch({
+        trainerId: params.trainerId,
+        batchId,
+        institutionId: instId,
+      });
+    }
+
+    return { success: true, batch };
+  }
+
+  assignTrainerToBatch(params: {
+    trainerId: string;
+    batchId: string;
+    subjectId?: string;
+    institutionId?: string;
+  }): { success: boolean; assignment?: any; error?: string } {
+    const trainer = this.profiles.get(params.trainerId);
+    if (!trainer || trainer.role !== 'TRAINER') {
+      return { success: false, error: 'Trainer not found or user is not a trainer.' };
+    }
+    const batch = this.batches.get(params.batchId);
+    if (!batch) {
+      return { success: false, error: 'Batch not found.' };
+    }
+
+    const instId = params.institutionId || batch.institutionId;
+    const assignId = `asgn-${params.trainerId}-${params.batchId}`;
+    const assignment = {
+      id: assignId,
+      institutionId: instId,
+      trainerId: params.trainerId,
+      batchId: params.batchId,
+      subjectId: params.subjectId || '66666666-6666-6666-6666-666666666661',
+      status: 'ACTIVE',
+    };
+
+    this.trainerAssignments.set(assignId, assignment);
+    return { success: true, assignment };
+  }
+
+  // --------------------------------------------------------------------------
+  // ADMIN DASHBOARD REAL DATABASE METRICS
+  // --------------------------------------------------------------------------
+  getAdminDashboardStats() {
+    const studentUserIds = new Set(
+      Array.from(this.memberships.values())
+        .filter((m) => m.role === 'STUDENT')
+        .map((m) => m.userId)
+    );
+    const trainerUserIds = new Set(
+      Array.from(this.memberships.values())
+        .filter((m) => m.role === 'TRAINER')
+        .map((m) => m.userId)
+    );
+    const totalStudents = studentUserIds.size;
+    const totalTrainers = trainerUserIds.size;
+    const totalBatches = this.batches.size;
+    const activeSessions = Array.from(this.sessions.values()).filter((s) => s.sessionStatus === 'ACTIVE');
+    const totalAttendanceRecords = this.attendance.size;
+
+    const recentRecords = Array.from(this.attendance.values())
+      .sort((a, b) => (b.markedAt || '').localeCompare(a.markedAt || ''))
+      .slice(0, 10)
+      .map((rec) => {
+        const student = this.profiles.get(rec.studentId);
+        const session = this.sessions.get(rec.sessionId);
+        const batch = session ? this.batches.get(session.batchId) : undefined;
+        return {
+          id: rec.id,
+          studentName: student?.displayName || 'Unknown Student',
+          studentEmail: student?.email || '',
+          batchName: batch?.name || 'Session',
+          status: rec.status,
+          markedAt: rec.markedAt,
+          source: rec.attendanceSource,
+        };
+      });
+
+    const batchSummaries = Array.from(this.batches.values()).map((b) => {
+      const enrolledCount = Array.from(this.studentEnrollments.values()).filter(
+        (e) => e.batchId === b.id && e.status === 'ACTIVE'
+      ).length;
+      const assignment = Array.from(this.trainerAssignments.values()).find(
+        (a) => a.batchId === b.id && a.status === 'ACTIVE'
+      );
+      const trainer = assignment ? this.profiles.get(assignment.trainerId) : undefined;
+      const activeSession = activeSessions.find((s) => s.batchId === b.id);
+
+      return {
+        id: b.id,
+        name: b.name,
+        code: b.code,
+        status: b.status,
+        startDate: b.startDate,
+        endDate: b.endDate,
+        enrolledCount,
+        trainerName: trainer?.displayName || 'Unassigned',
+        trainerEmail: trainer?.email || '',
+        hasActiveSession: !!activeSession,
+      };
+    });
+
+    return {
+      totalStudents,
+      totalTrainers,
+      totalBatches,
+      activeSessionsCount: activeSessions.length,
+      totalAttendanceRecords,
+      recentRecords,
+      batchSummaries,
+    };
   }
 
   // ============================================================================
