@@ -3,6 +3,7 @@
 // ==============================================================================
 
 import { runAttendanceStatusTests } from './attendance_status.test';
+import { runStudentEnrollmentScenariosTests } from './student_enrollment_scenarios.test';
 import { runQRSecurityTests } from './qr_security.test';
 import { runGeofenceTests } from './geofence.test';
 import { runExcelRegisterTests } from './excel_register.test';
@@ -18,6 +19,7 @@ async function main() {
 
   try {
     runAttendanceStatusTests();
+    runStudentEnrollmentScenariosTests();
     runQRSecurityTests();
     runGeofenceTests();
     await runExcelRegisterTests();
@@ -27,7 +29,7 @@ async function main() {
     await runLoadTests();
 
     console.log('\n================================================================');
-    console.log('  ALL AUTOMATED TESTS & BENCHMARKS PASSED! (8/8 TEST SUITES)    ');
+    console.log('  ALL AUTOMATED TESTS & BENCHMARKS PASSED! (9/9 TEST SUITES)    ');
     console.log('================================================================\n');
     process.exit(0);
   } catch (err: any) {

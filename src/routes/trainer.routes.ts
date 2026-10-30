@@ -7,6 +7,14 @@ const router = Router();
 router.use(requireAuth);
 router.use(requireTrainer);
 
+// GET /api/trainer/students/search
+router.get('/students/search', (req: AuthenticatedRequest, res: Response) => {
+  const query = (req.query.q as string) || '';
+  const batchId = (req.query.batchId as string) || undefined;
+  const students = db.searchStudents(query, batchId);
+  return res.json({ success: true, students });
+});
+
 // GET /api/trainer/batches
 router.get('/batches', (req: AuthenticatedRequest, res: Response) => {
   const institutionId = req.sessionData?.institution?.id || '11111111-1111-1111-1111-111111111111';

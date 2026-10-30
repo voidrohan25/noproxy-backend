@@ -367,35 +367,81 @@ class NoProxyStore {
       });
     }
 
-    // 8. Pre-Register and Claim ST-001 for Aarav Patel (Verified Student Demo)
+    // 8. Pre-Register and Claim Verified Students for Demo
+    const demoStudents = [
+      { id: '44444444-4444-4444-4444-444444444441', name: 'Aarav Patel', email: 'aarav.patel@student.edu', idNum: 'ST-001', initialBatches: [batchId, batch2Id, batch3Id] },
+      { id: '44444444-4444-4444-4444-444444444443', name: 'Rohan Gupta', email: 'rohan.gupta@student.edu', idNum: 'ST-003', initialBatches: [batchId] },
+      { id: '44444444-4444-4444-4444-444444444444', name: 'Ananya Sharma', email: 'ananya.sharma@student.edu', idNum: 'ST-004', initialBatches: [batch2Id] },
+      { id: '44444444-4444-4444-4444-444444444445', name: 'Vikram Aditya', email: 'vikram.aditya@student.edu', idNum: 'ST-005', initialBatches: [batch2Id] },
+      { id: '44444444-4444-4444-4444-444444444446', name: 'Neha Verma', email: 'neha.verma@student.edu', idNum: 'ST-006', initialBatches: [batch3Id] },
+      { id: '44444444-4444-4444-4444-444444444447', name: 'Kabir Mehta', email: 'kabir.mehta@student.edu', idNum: 'ST-007', initialBatches: [] },
+      { id: '44444444-4444-4444-4444-444444444448', name: 'Sanjana Rao', email: 'sanjana.rao@student.edu', idNum: 'ST-008', initialBatches: [] },
+    ];
+
+    for (const s of demoStudents) {
+      this.profiles.set(s.id, {
+        id: s.id,
+        displayName: s.name,
+        email: s.email,
+        role: 'STUDENT',
+        accountStatus: 'ACTIVE',
+        createdAt: '2026-09-01T00:00:00Z',
+        updatedAt: '2026-09-01T00:00:00Z',
+      });
+
+      this.memberships.set(`mem-${s.id}`, {
+        id: `mem-${s.id}`,
+        institutionId: instId,
+        userId: s.id,
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        createdAt: '2026-09-01T00:00:00Z',
+      });
+
+      this.credentials.set(s.email, {
+        email: s.email,
+        passwordHash: 'Student@2026!',
+        role: 'STUDENT',
+        userId: s.id,
+        institutionId: instId,
+      });
+
+      this.studentProfiles.set(s.id, {
+        id: `sp-${s.id}`,
+        userId: s.id,
+        institutionId: instId,
+        studentIdNumber: s.idNum,
+        fullName: s.name,
+        isVerified: true,
+        verificationStatus: 'VERIFIED',
+        registeredAt: '2026-09-01T10:00:00Z',
+      });
+
+      // Mark claimed in authoritative roster if ST-001
+      if (s.idNum === 'ST-001') {
+        const rosterItem = this.authoritativeRoster.get(`roster-${batchId}-ST-001`);
+        if (rosterItem) {
+          rosterItem.isClaimed = true;
+          rosterItem.claimedByUserId = s.id;
+          rosterItem.claimedAt = '2026-09-01T10:00:00Z';
+        }
+      }
+
+      for (const bId of s.initialBatches) {
+        this.studentEnrollments.set(`enr-${s.id}-${bId}`, {
+          id: `enr-${s.id}-${bId}`,
+          institutionId: instId,
+          batchId: bId,
+          studentId: s.id,
+          rollNumber: s.idNum,
+          enrolledAt: '2026-09-01T10:00:00Z',
+          status: 'ACTIVE',
+        });
+      }
+    }
+
     const student1Id = '44444444-4444-4444-4444-444444444441';
-    const student1Email = 'aarav.patel@student.edu';
 
-    this.profiles.set(student1Id, {
-      id: student1Id,
-      displayName: 'Aarav Patel',
-      email: student1Email,
-      accountStatus: 'ACTIVE',
-      createdAt: '2026-09-01T00:00:00Z',
-      updatedAt: '2026-09-01T00:00:00Z',
-    });
-
-    this.memberships.set(`mem-${student1Id}`, {
-      id: `mem-${student1Id}`,
-      institutionId: instId,
-      userId: student1Id,
-      role: 'STUDENT',
-      status: 'ACTIVE',
-      createdAt: '2026-09-01T00:00:00Z',
-    });
-
-    this.credentials.set(student1Email, {
-      email: student1Email,
-      passwordHash: 'Student@2026!',
-      role: 'STUDENT',
-      userId: student1Id,
-      institutionId: instId,
-    });
     // Convenience aliases for student testing
     this.credentials.set('student@apexinstitute.edu', {
       email: 'student@apexinstitute.edu',
@@ -410,55 +456,6 @@ class NoProxyStore {
       role: 'STUDENT',
       userId: student1Id,
       institutionId: instId,
-    });
-
-    // Mark ST-001 as claimed in authoritative roster
-    const st001Roster = this.authoritativeRoster.get(`roster-${batchId}-ST-001`);
-    if (st001Roster) {
-      st001Roster.isClaimed = true;
-      st001Roster.claimedByUserId = student1Id;
-      st001Roster.claimedAt = '2026-09-01T10:00:00Z';
-    }
-
-    // Create StudentProfile
-    this.studentProfiles.set(student1Id, {
-      id: student1Id,
-      userId: student1Id,
-      institutionId: instId,
-      batchId,
-      studentIdNumber: 'ST-001',
-      fullName: 'Aarav Patel',
-      isVerified: true,
-      verificationStatus: 'VERIFIED',
-      registeredAt: '2026-09-01T10:00:00Z',
-    });
-
-    // Enroll ST-001 in Multiple Batches (Multi-Batch Support)
-    this.studentEnrollments.set(`enr-${student1Id}-${batchId}`, {
-      id: `enr-${student1Id}-${batchId}`,
-      institutionId: instId,
-      batchId,
-      studentId: student1Id,
-      rollNumber: 'ST-001',
-      status: 'ACTIVE',
-    });
-
-    this.studentEnrollments.set(`enr-${student1Id}-${batch2Id}`, {
-      id: `enr-${student1Id}-${batch2Id}`,
-      institutionId: instId,
-      batchId: batch2Id,
-      studentId: student1Id,
-      rollNumber: 'ST-001',
-      status: 'ACTIVE',
-    });
-
-    this.studentEnrollments.set(`enr-${student1Id}-${batch3Id}`, {
-      id: `enr-${student1Id}-${batch3Id}`,
-      institutionId: instId,
-      batchId: batch3Id,
-      studentId: student1Id,
-      rollNumber: 'ST-001',
-      status: 'ACTIVE',
     });
 
     this.deviceRegistrations.set(student1Id, {
@@ -1665,6 +1662,61 @@ class NoProxyStore {
     return Array.from(this.studentEnrollments.values()).filter((e) => e.studentId === studentId);
   }
 
+  isStudentUser(userId: string): boolean {
+    const mem = Array.from(this.memberships.values()).find((m) => m.userId === userId);
+    if (mem?.role === 'STUDENT') return true;
+    const p = this.profiles.get(userId);
+    if (p?.role === 'STUDENT') return true;
+    if (this.studentProfiles.has(userId)) return true;
+    return false;
+  }
+
+  findStudentByEmail(email: string): Profile | undefined {
+    const norm = (email || '').trim().toLowerCase();
+    if (!norm) return undefined;
+    return Array.from(this.profiles.values()).find((p) => {
+      if (p.email.toLowerCase() !== norm) return false;
+      return this.isStudentUser(p.id);
+    });
+  }
+
+  searchStudents(query: string, currentBatchId?: string) {
+    const q = (query || '').trim().toLowerCase();
+    const studentUserIds = new Set(
+      Array.from(this.memberships.values())
+        .filter((m) => m.role === 'STUDENT')
+        .map((m) => m.userId)
+    );
+
+    const allStudents = Array.from(this.profiles.values()).filter((p) => {
+      const isStudent = studentUserIds.has(p.id) || p.role === 'STUDENT' || this.studentProfiles.has(p.id);
+      if (!isStudent) return false;
+      if (!q) return true;
+      return p.displayName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+    });
+
+    return allStudents.map((s) => {
+      const isAlreadyEnrolled = currentBatchId
+        ? Array.from(this.studentEnrollments.values()).some(
+            (e) => e.studentId === s.id && e.batchId === currentBatchId && e.status === 'ACTIVE'
+          )
+        : false;
+
+      const enrolledBatchesCount = Array.from(this.studentEnrollments.values()).filter(
+        (e) => e.studentId === s.id && e.status === 'ACTIVE'
+      ).length;
+
+      return {
+        id: s.id,
+        displayName: s.displayName,
+        email: s.email,
+        accountStatus: s.accountStatus,
+        isAlreadyEnrolled,
+        enrolledBatchesCount,
+      };
+    });
+  }
+
   // --------------------------------------------------------------------------
   // SIMPLIFIED ZERO-ROLL-NUMBER ENROLLMENT (NAME + EMAIL ONLY)
   // --------------------------------------------------------------------------
@@ -1699,9 +1751,7 @@ class NoProxyStore {
     }
 
     // Check if user already exists
-    let student = Array.from(this.profiles.values()).find(
-      (p) => p.email.toLowerCase() === normalizedEmail && p.role === 'STUDENT'
-    );
+    let student = this.findStudentByEmail(normalizedEmail);
     let isNew = false;
 
     if (!student) {
@@ -1731,8 +1781,8 @@ class NoProxyStore {
 
       this.memberships.set(`mem-${studentId}`, {
         id: `mem-${studentId}`,
-        userId: studentId,
         institutionId: batch.institutionId,
+        userId: studentId,
         role: 'STUDENT',
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
