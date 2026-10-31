@@ -679,7 +679,7 @@ class NoProxyStore {
       return { success: false, error: 'Account profile not found.' };
     }
 
-    if (profile.accountStatus === 'INACTIVE' || profile.accountStatus === 'SUSPENDED') {
+    if ((profile.accountStatus as string) === 'INACTIVE' || profile.accountStatus === 'SUSPENDED') {
       return { success: false, error: 'Account has been deactivated. Please contact your institute administrator.' };
     }
 

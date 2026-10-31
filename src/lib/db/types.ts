@@ -38,7 +38,7 @@ export interface Profile {
   role?: Role;
   phone?: string;
   avatarUrl?: string;
-  accountStatus: 'ACTIVE' | 'PENDING' | 'SUSPENDED';
+  accountStatus: 'ACTIVE' | 'PENDING' | 'SUSPENDED' | 'INACTIVE';
   createdAt: string;
   updatedAt: string;
 }
