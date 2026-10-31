@@ -10,6 +10,7 @@ import { runExcelRegisterTests } from './excel_register.test';
 import { runMultiBatchEnrollmentTests } from './multi_batch_enrollment.test';
 import { runAdminLocationSecurityTests } from './admin_location_security.test';
 import { runEndToEndJourneysTests } from './e2e_journeys.test';
+import { runAdversarialSecurityAudit } from './adversarial_security_audit.test';
 import { runLoadTests } from './load_test';
 
 async function main() {
@@ -26,10 +27,11 @@ async function main() {
     runMultiBatchEnrollmentTests();
     runAdminLocationSecurityTests();
     await runEndToEndJourneysTests();
+    await runAdversarialSecurityAudit();
     await runLoadTests();
 
     console.log('\n================================================================');
-    console.log('  ALL AUTOMATED TESTS & BENCHMARKS PASSED! (9/9 TEST SUITES)    ');
+    console.log('  ALL AUTOMATED TESTS & BENCHMARKS PASSED! (10/10 TEST SUITES)  ');
     console.log('================================================================\n');
     process.exit(0);
   } catch (err: any) {

@@ -327,12 +327,12 @@ class NoProxyStore {
       name: 'Advanced Software Lab 402',
       building: 'Science & Tech Tower',
       roomNumber: 'Lab 402',
-      latitude: 18.5196,
-      longitude: 73.8554,
-      geofenceRadiusMeters: 1000.0,
-      requiredGpsAccuracyMeters: 150.0,
+      latitude: 19.0760,
+      longitude: 72.8777,
+      geofenceRadiusMeters: 55.0,
+      requiredGpsAccuracyMeters: 30.0,
       gpsVerificationEnabled: true,
-      gpsMandatory: false,
+      gpsMandatory: true,
       allowedNetworkCidrs: ['192.168.1.0/24', '116.74.159.0/24', '116.74.159.28/32', '10.0.0.0/16', '127.0.0.1/32'],
       networkVerificationEnabled: false,
       networkMandatory: false,
@@ -1078,8 +1078,8 @@ class NoProxyStore {
             classroom.geofenceRadiusMeters,
             classroom.requiredGpsAccuracyMeters
           );
-          if (!geoRes.valid && classroom.gpsMandatory) {
-            return { success: false, error: geoRes.reason || 'GPS geofence verification failed.' };
+          if (!geoRes.valid) {
+            return { success: false, error: geoRes.reason || 'GPS geofence verification failed: Device is outside classroom boundary.' };
           }
           gpsPassed = geoRes.valid;
           distanceMeters = geoRes.distanceMeters;
@@ -1743,6 +1743,11 @@ class NoProxyStore {
 
     const batch = this.batches.get(params.batchId);
     if (!batch) return { success: false, error: 'Selected batch does not exist.' };
+
+    // Role check: Only ADMIN and assigned TRAINER can enroll students
+    if (params.actorRole && params.actorRole !== 'ADMIN' && params.actorRole !== 'TRAINER') {
+      return { success: false, error: 'Forbidden: Only Administrators and assigned Trainers are authorized to enroll students.' };
+    }
 
     // If a trainer is adding, verify they are assigned to this batch
     if (params.actorRole === 'TRAINER' && params.actorId) {

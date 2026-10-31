@@ -62,11 +62,25 @@ router.post('/mark-online', requireTrainer, (req: AuthenticatedRequest, res: Res
 });
 
 // POST /api/attendance/correct (Audited correction by Admin or Trainer)
-router.post('/correct', (req: AuthenticatedRequest, res: Response) => {
+router.post('/correct', requireTrainer, (req: AuthenticatedRequest, res: Response) => {
   const { sessionId, studentId, newStatus, reason } = req.body || {};
 
   if (!sessionId || !studentId || !newStatus || !reason) {
     return res.status(400).json({ error: 'sessionId, studentId, newStatus, and mandatory audit reason are required.' });
+  }
+
+  const session = db.sessions.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found.' });
+  }
+
+  if (req.userRole === 'TRAINER') {
+    const isAssigned = Array.from(db.trainerAssignments.values()).some(
+      (a) => a.trainerId === req.userId && a.batchId === session.batchId && a.status === 'ACTIVE'
+    );
+    if (!isAssigned && session.createdBy !== req.userId) {
+      return res.status(403).json({ error: 'Forbidden: You are not assigned to manage attendance for this batch session.' });
+    }
   }
 
   // Strictly enforce 3 statuses

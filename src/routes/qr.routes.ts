@@ -21,6 +21,15 @@ router.post('/generate', requireTrainer, async (req: AuthenticatedRequest, res: 
     return res.status(404).json({ error: 'Session not found.' });
   }
 
+  if (req.userRole === 'TRAINER') {
+    const isAssigned = Array.from(db.trainerAssignments.values()).some(
+      (a) => a.trainerId === req.userId && a.batchId === session.batchId && a.status === 'ACTIVE'
+    );
+    if (!isAssigned && session.createdBy !== req.userId) {
+      return res.status(403).json({ error: 'Forbidden: You are not assigned to generate QR codes for this batch session.' });
+    }
+  }
+
   if (session.sessionStatus !== 'ACTIVE') {
     return res.status(400).json({ error: `Cannot generate QR: Session is not ACTIVE (current status: ${session.sessionStatus}).` });
   }
